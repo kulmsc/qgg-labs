@@ -1,0 +1,309 @@
+---
+title: "Quantitative Genomics and Genetics 2019"
+subtitle: "Computer Lab 8"
+author: "Scott Kulm"
+date: "3/28/2019"
+output: html_document
+---
+
+--------------------------------------------------------------------------
+
+### 1. Review
+
+- So far we have covered:
+  -- Reading in genetic data
+  -- Converting genetic data into Xa and Xd codings
+  -- Filtering the data by minor allele frequency
+  -- Completing a regression on each variant (F-Statistic)
+  -- Plotting the results (Manhattan Plot and QQ-Plot)
+  -- Calling significant variants with multiple hypothesis corrections
+  -- Principal Components Analysis
+  
+- That's alot! Great job everyone so far
+
+- Today we will show how R can complete a regression much easier then the way we have been doing it
+
+- This new method of regression also allows for the handling of covariates
+
+- Finally, we will cover a non-R GWAS tool and compare results
+
+
+### 2. Mini eQTL Analysis
+
+We are going to run a mini-eQTL analysis with some real data downloaded from the HapMap Project. Since we would probably need something more powerful than a standard laptop to analyze the complete dataset, I have downloaded the genotype and phenotype data for a single population (YRI) and scaled down the data to 400 genotypes and 10 phenotypes for 107 individuals.
+
+You will find 4 files posted with this lab note:
+
+HapMap_phenotypes.tsv = 10 phenotypes (gene expression levels) for 107 individuals 
+HapMap_genoytpes.tsv = 400 genotypes (coded as -1,0,1) for 107 individuals 
+HapMap_gene_info.tsv = Partial gene information (entrez gene id, gene symbol, position) 
+HapMap_snp_info.tsv = Partial SNP information (chromosome, position)
+
+All the information in the files are tab separated (as you can guess from the extension .tsv).
+
+The best place to always start is reading in the data:
+
+```{r}
+hapmap.pheno.mx <- read.table("./HapMap_phenotypes.tsv", sep = "\t")
+hapmap.geno.mx <- read.table("./HapMap_genotypes.tsv", sep = "\t")
+hapmap.gene.info.df <- read.table("./HapMap_gene_info.tsv", sep = "\t")
+hapmap.snp.info.df <- read.table("./HapMap_snp_info.tsv", sep = "\t")
+```
+
+Let's check to make sure the dimensions I gave are correct
+
+```{r}
+dim(hapmap.pheno.mx)
+dim(hapmap.geno.mx)
+dim(hapmap.gene.info.df)
+dim(hapmap.snp.info.df)
+```
+
+Nice! Everything checks out.
+
+Since the data is already in -1,0,1 format we do not have to convert any letters into Xa and Xd codings.  Rather we can jump right into the regression framework that we have been doing for the last couple weeks.
+
+```{r}
+pval.mx <- matrix(NA, nrow = dim(hapmap.pheno.mx)[2], ncol = dim(hapmap.geno.mx)[2])
+
+for (p in 1:dim(hapmap.pheno.mx)[2]){
+  phenotypes <- hapmap.pheno.mx[,p]
+  N.samples <- dim(hapmap.pheno.mx)[1]
+  for (i in 1:dim(hapmap.geno.mx)[2]){
+    X.mx <- cbind(1,hapmap.geno.mx[,i])
+    MLE.beta <- solve(t(X.mx) %*% X.mx) %*% t(X.mx) %*% phenotypes
+    y.hat <- X.mx %*% MLE.beta
+    SSM <- sum((y.hat - mean(phenotypes))^2)
+    SSE <- sum((phenotypes - y.hat)^2)
+    df.M <- 1
+    df.E <- N.samples - 2
+    MSM <- SSM / df.M
+    MSE <- SSE / df.E
+    Fstatistic <- MSM / MSE
+    pval.mx[p,i] <- pf(Fstatistic, df.M, df.E,lower.tail = FALSE)
+  } 
+}
+
+```
+
+The p-values are currently held within a matrix with 10 rows for each phenotype and 400 columns for each variant.  Let's reorganize this and plot a manhattan plot.
+
+```{r}
+library(ggplot2)
+
+pval.mx <- data.frame(t(pval.mx))
+
+ggplot(pval.mx,aes(1:nrow(pval.mx),-log10(X1)))+geom_point()+
+  labs(x="Variant",y="-log10(pval)",title="Manhattan Plot for Phenotype 1")
+
+```
+
+This plot looks good, but we now have much more information to actually spruce the plot up and provide more data.  First we have to find the SNPs that we actually investigated, then include that data with our plotting data frame.
+
+```{r}
+
+pval.mx$chrom=rep("unknown",nrow(pval.mx))
+pval.mx$pos=rep("unknown",nrow(pval.mx))
+
+hapmap.snp.info.df$chrom <- as.character(hapmap.snp.info.df$chrom)
+hapmap.snp.info.df$id <- as.character(hapmap.snp.info.df$id)
+
+i=1
+for(rs in colnames(hapmap.geno.mx)){
+  if(any(hapmap.snp.info.df$id == rs)){
+   pval.mx$chrom[i] <- hapmap.snp.info.df$chrom[hapmap.snp.info.df$id == rs]
+   pval.mx$pos[i] <- hapmap.snp.info.df$pos[hapmap.snp.info.df$id == rs]
+  }
+  i=i+1
+}
+
+
+```
+
+```{r}
+head(pval.mx)
+
+```
+
+```{r}
+ggplot(pval.mx,aes(1:nrow(pval.mx),-log10(X1)))+geom_point(aes(color=chrom))+
+  labs(x="Variant",y="-log10(pval)",title="Manhattan Plot for Phenotype 1")
+```
+
+This isn't a great example, since all of the SNPs are from chromosome 7, but ina typical GWAS you can (and probably should) make sure really nice alternating coloring that quickly allows for SNP location and chromosome identification.
+
+The last thing we might want to do with the data is determine which variant is the most significant
+
+```{r}
+phenotypeIndex <- 1
+
+minpval.ind <- which(pval.mx == sort(pval.mx[,phenotypeIndex])[1], arr.ind = TRUE)
+
+gene.info.vec <- hapmap.gene.info.df[which(hapmap.gene.info.df$probe == colnames(hapmap.pheno.mx)[phenotypeIndex]),]
+
+genotype.info.vec <- hapmap.snp.info.df[which(hapmap.snp.info.df$id == colnames(hapmap.geno.mx)[minpval.ind[2]] ),]
+
+cat( "Gene = ", colnames(hapmap.pheno.mx)[phenotypeIndex] ,"| ", paste0("chr", gene.info.vec$chromosome) ,"Start =", gene.info.vec$start,"End =", gene.info.vec$end,"\n" )
+
+cat( "SNP = ", colnames(hapmap.geno.mx)[minpval.ind[2]] ,"| ", toString(genotype.info.vec$chrom) ,"Position =", genotype.info.vec$position,"\n" )
+```
+
+Lastly, to again spruce up the GWAS and show the power of ggplot2, let's add the rs information and gene ID to the Manhattan Plot.
+
+```{r}
+library(ggrepel)
+
+pval.mx$sigRsid <- NA
+pval.mx$sigRsid[minpval.ind[1]] <- colnames(hapmap.geno.mx)[minpval.ind[2]]
+
+ggplot(pval.mx,aes(1:nrow(pval.mx),-log10(X1), label=sigRsid))+geom_point(aes(color=chrom))+
+  labs(x="Variant",y="-log10(pval)",title=paste("Manhattan Plot for eQTL", colnames(hapmap.pheno.mx)[phenotypeIndex]))+
+  geom_label_repel()
+```
+
+### 3. Regression in R
+
+While going through the regression process for the past few weeks you've probably thought "There's gotta be an easier way to get these pvalues", well you are right.  R has a great linear regression function simply called lm().  Let's first go over the basics.
+
+```{r}
+df <- data.frame(y=rnorm(100),x=rnorm(100,mean=2)+runif(100,min=-0.1,max=0.1))
+model <- lm(data = df, y ~ x)
+model
+```
+
+The formula we are regressing here is y = mx + b.  R is quickly able to calculate both the intercept or b values, and the x or slope or m value.  We can get much more information about our model using the summary() function.
+
+```{r}
+summary(model)
+```
+
+We see here some information about the residuals or the disparity between the fit and actual data, again the estimates of the coefficients, and a pvalue!  This pvalue is the same one we would calculate in the long regression process.  The model even reports the F-Statistic just as we have been calculating.
+
+Let's carry out this process for the genotype and phenotype data we have been working with, starting with the first variant and the first phenotype.
+
+```{r}
+Xa.all <- as.matrix(hapmap.geno.mx)
+
+regression.df <- data.frame("Y" = hapmap.pheno.mx[,1], "Xa" = Xa.all[,1])
+model <- lm(Y ~ Xa, data = regression.df)
+pval <- summary(model)$coefficients[2,4]
+summary(model)
+```
+
+Now let's compare the two results to check that indeed the process is exactly the same
+
+```{r}
+pval.mx[1,1]
+pval
+```
+
+They match! Which is great since the lm() process can be condensed down to one line.
+
+```{r}
+pvals <- apply(Xa.all, 2, function(x,y) summary(lm(y ~ x))$coefficients[2,4], hapmap.pheno.mx[,1])
+
+head(pvals)
+head(pval.mx[,1])
+```
+
+
+### 4. Covariates
+
+The lm() framework also allows us to easily include the covariates within our analysis.  All we need to do is add another term to the design equation.  Going back to our basic example:
+
+```{r}
+df <- data.frame(y=rnorm(100), x=rnorm(100,mean=2)+runif(100,min=-0.1,max=0.1), covar=rnorm(100,mean=5))
+model <- lm(data = df, y ~ x + covar)
+model
+```
+
+By including different covariates in our model we can piece out where each component that makes up the phenotype comes from.  In the below very basic example, the linear regression is super accurately able to determine that two times the z value makes up the y value compared to only one of the x value.
+
+```{r}
+df <- data.frame(x=rnorm(100,mean=-2), z=rnorm(100,mean=5))
+df$y <- df$x + 2*df$z
+model <- lm(data = df, y ~ x + z)
+model
+```
+
+This is an important feature if there was some odd confounding factor in the genetic data, for example population structure.  To remove population structure we would make the covariate the principal components we disccussed in last lab.  Currently the data is all from one population, so we don't have the population structure.  To make a problem we will add some signal to certain people with the 1 genotype.
+
+```{r}
+peopleToChange <- which(hapmap.geno.mx[,2]==1)[1:20]
+alter.hapmap.pheno.mx <- data.frame(hapmap.pheno.mx)
+alter.hapmap.pheno.mx[peopleToChange,2] <- alter.hapmap.pheno.mx[peopleToChange,2] + 1
+changeStatus <- rep(0, nrow(hapmap.geno.mx))
+changeStatus[peopleToChange] <- 1
+changeStatus <- as.factor(changeStatus)
+```
+
+We reccord which people were changed in a factor vector called changeStatus, so that we can later use it as a covariate.  Now let's run out the regression for each scenario:
+
+```{r}
+pvalOrig <- summary(lm(hapmap.pheno.mx[,2] ~ hapmap.geno.mx[,1]))$coefficients[2,4]
+pvalOrig
+
+pvalAlter <- summary(lm(alter.hapmap.pheno.mx[,2] ~ hapmap.geno.mx[,1]))$coefficients[2,4]
+pvalAlter
+
+pvalCovar <- summary(lm(alter.hapmap.pheno.mx[,2] ~ hapmap.geno.mx[,1] + changeStatus))$coefficients[2,4]
+pvalCovar
+```
+
+We see that the original pvalue is not significant, but whe we altered the phenotype there is a very significant association. We can fix this statistical damage done by still using the altered phenotype but including the change status covariate.  The outcome is a pvalue that is even less statistically significant than the original.  This is a good result, as we no longer have a false positive although it should be noted that we are not able to perfectly recover our results.
+
+### 5. Real World GWAS
+
+I know want to show you tools that are typically used to actually carry out a GWAS, namely plink.  Before we use this tool we need to reformat the data so that it can be read.  Specifically we need to make a ped and map file (https://www.cog-genomics.org/plink2/formats).  
+
+```{r}
+hapmap.pheno.mx <- read.table("./HapMap_phenotypes.tsv", sep = "\t")
+hapmap.geno.mx <- read.table("./HapMap_genotypes.tsv", sep = "\t")
+
+famFile=cbind(rownames(hapmap.geno.mx), rownames(hapmap.geno.mx), rep(0,nrow(hapmap.geno.mx)), 
+                rep(0,nrow(hapmap.geno.mx)), rep(0,nrow(hapmap.geno.mx)), rep(-9,nrow(hapmap.geno.mx)))
+
+pedFile <- data.frame(matrix(0,nrow=nrow(hapmap.geno.mx),ncol=(ncol(hapmap.geno.mx)*2)))
+i=1
+hapmap.geno.mx = hapmap.geno.mx + 1
+for(j in seq(1,ncol(hapmap.geno.mx)*2,2)){
+  firstCol <- hapmap.geno.mx[,i]
+  firstCol[firstCol==2] <- 1
+  secondCol <- hapmap.geno.mx[,i]
+  secondCol[secondCol==1] <- 0
+  secondCol <- secondCol / 2
+  pedFile[,j] <- firstCol
+  pedFile[,(j+1)] <- secondCol
+  i=i+1
+}
+
+pedFile[pedFile==1]="A"
+pedFile[pedFile==0]="G"
+pedFile <- cbind(famFile, pedFile)
+
+mapFile <- cbind(rep(7, ncol(hapmap.geno.mx)), paste0("rs",1:ncol(hapmap.geno.mx)),
+                 rep(7, ncol(hapmap.geno.mx)), 1:ncol(hapmap.geno.mx))
+
+write.table(mapFile,"hapmap.map",row.names=F, col.names=F,quote=F, sep='\t')
+write.table(pedFile,"hapmap.ped",row.names=F, col.names=F,quote=F, sep='\t')
+```
+
+We can check that our data files work within PLINK by typing:
+  plink --file hapmap --make-bed --out hapmap
+  
+To do the association we also must make a phenotype file
+
+```{r}
+phenoFile <- cbind(rownames(hapmap.pheno.mx),rownames(hapmap.pheno.mx),hapmap.pheno.mx[,1])
+write.table(phenoFile, "hapmap.pheno", row.names = F, col.names = F, quote = F, sep = "\t")
+```
+
+Now we can run the association by simply typing:
+  plink --bfile hapmap --pheno hapmap.pheno --linear --no-sex
+  
+The output data is within plink.assoc.linear  . The data can be accessed from within the terminal by using the head function.  Comparing the data we can see that the pvalues match the pvalues within pval.mx .  Plink offers many, many other features that enable quick and easy GWAS.  For example by reading the doccumentation we see that we can easily test dominant or recessive effects by simply adding those words to the command, we do not have to make new Xa and Xd matricies and run the regression function or even lm().  I'll be going more into plink a little later in the semester, it is a great tool if you want to do GWAS on a larger, real-world scale.
+
+###. Exercise
+
+Calculate the principal components of the genotype matrix.  Use the first principal component as a covariate within a linear regression test between all of the variants and the fourth phenotype.  Plot a QQ-Plot of the p-values with the covariate regression and without the covariate regression.  Are there any significant hits in either of your regression models?
+
