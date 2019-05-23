@@ -1,0 +1,273 @@
+---
+title: "Quantitative Genomics and Genetics 2019"
+subtitle: "Computer Lab 4"
+author: "Scott Kulm"
+date: "2/19/2019"
+output: html_document
+---
+
+--------------------------------------------------------------------------------------
+
+### 1. Boolean Data Type
+
+- Boolean data type is a data type with only two possible values, TRUE and FALSE.
+
+- Its main usage is for testing conditions. 
+
+- In R and many other languages, the actual values for TRUE and FALSE are 1 and 0.
+
+- This can be illustrated as follows
+
+```{r, comment = NA}
+sum(TRUE + TRUE)
+sum(FALSE)
+```
+
+- Booleans are useful in testing conditions. 
+
+- For example, if you are interested in finding out if certain elements of a vector are greater than or smaller than a certain value, you can use >, <, >=, <=
+
+```{r, comment = NA}
+example.vector <- seq(1,25,by= 2)
+example.vector
+example.vector > 10
+example.vector >= 15
+example.vector <= 5
+```
+
+- Each position where the value meets the condition will be marked with TRUE, and with FALSE otherwise.
+
+- Since TRUE and FALSE are essentially 1 and 0, you can easily find out how many elements satisfy the condition by simply taking the sum of the result. 
+
+```{r, comment = NA}
+sum(example.vector >10)
+```
+
+- The same applies to matrices
+
+```{r, comment = NA}
+example.mx <- matrix(c(2,5,7,-2,-5,-10), ncol = 3, byrow=T)
+example.mx < 1
+```
+
+- You can also check if an element is equal to a specific value 
+
+```{r, comment = NA}
+dim(example.mx)[1] == 2
+```
+
+```{r, comment = NA}
+example.vector == 3
+```
+
+- Quick Question !?
+  What would I write to determine the number of cars in the mtcars dataframe that have more than 6 cylinders
+
+```{r, comment = NA}
+head(mtcars)
+```
+
+### 2. Boolean Algebra
+
+- Boolean algebra allows you to combine multiple conditions.
+
+- There are three basic operations AND (&), OR (|) and NOT (!).
+
+- The AND (&) operator returns TRUE **only if all conditions are TRUE**
+
+```{r, comment = NA}
+FALSE & FALSE
+TRUE & FALSE
+TRUE & TRUE
+# Example of an AND operator
+example.vector > 5 & example.vector < 10
+# if you want to see the actual elements 
+example.vector[example.vector >10 & example.vector < 20]
+```
+
+- The OR (|) operator returns TRUE **when at least one condition is TRUE**
+
+```{r, comment= NA}
+FALSE | FALSE
+TRUE | FALSE
+TRUE | TRUE
+# Example of an OR operator
+example.vector > 10 | example.vector < 20
+example.vector < 10 | example.vector > 20
+```
+
+- NOT (!) returns the opposite result
+
+```{r, comment = NA}
+!(TRUE)
+example.vector != 3
+```
+
+### 3. More on Vector Elements
+
+- If you want to check whether a certain element is present or absent in a vector use the %in% operator
+
+```{r, comment = NA}
+fruits <- c("banana","apple","strawberry","peach","mango")
+"mango" %in% fruits
+"durian" %in% fruits
+```
+
+- The %in% operator works particularly well when comparing a smaller vector to a larger one
+
+```{r, comment = NA}
+c("mango","apple") == fruits
+c("mango","apple") %in% fruits
+```
+
+- We can see what the ! operator is doing by wrapping the previous expression with !() 
+
+```{r, comment = NA}
+!("durian" %in% fruits)
+```
+
+- You can find out the index of a certain entry in a vector by using the which() function 
+
+```{r, comment = NA}
+which(fruits == "apple")
+```
+
+- If you want to compare two vectors,
+
+```{r, comment = NA}
+fruits2 <- c("orange","banana","durian","cherry","mango","apple")
+fruits2 %in% fruits
+# show me the position
+which(fruits2 %in% fruits)
+#show me the elements
+fruits2[fruits2 %in% fruits]
+# There is also a function for this
+intersect(fruits2, fruits)
+```
+
+- Quick Question !?
+  From mtcars, what are all the car names with mpg over 20.  
+
+```{r, comment = NA}
+head(mtcars)
+```
+
+### 4. Missing Data
+
+- Sometimes a piece of data is just not filled in
+
+```{r, comment = NA}
+head(airquality)
+dim(airquality)
+```
+
+- This will create some problems if we want to find the mean, or subset the dataframe
+
+```{r, comment = NA}
+mean(airquality$Ozone)
+
+airquality[airquality$Ozone > 20,]
+```
+
+- One easy solution is just to remove all missing data
+
+```{r, comment = NA}
+na.omit(airquality$Ozone)
+cat("\n")
+
+mean(airquality$Ozone, na.rm = T)
+cat("\n")
+
+airquality$Ozone[!is.na(airquality$Ozone)]
+```
+
+- Removing NAs is built into some functions
+
+```{r, comment = NA}
+mean(airquality$Ozone, na.rm = T)
+cat("\n")
+
+var(airquality$Ozone, na.rm = T)
+```
+
+- Another solution, is to set all the NA values as some other number
+
+```{r, comment = NA}
+myAir <- data.frame(airquality)
+for(i in 1:ncol(myAir)){
+  currentCol <- myAir[,i]
+  currentCol[is.na(currentCol)] <- mean(currentCol,na.rm = T)
+  myAir[,i] <- currentCol
+}
+
+head(myAir)
+```
+- This method can work well, depending on what you want to do
+
+```{r, comment = NA}
+mean(myAir$Ozone)
+cat("\n")
+
+var(myAir$Ozone)
+```
+
+
+### Exercise
+
+- When trying to determine if one distribution is true or not one can specify an alpha value
+- This alpha value specifies the confidence of your answer
+- We can convert the alpha value into a test statistics using qnorm
+
+```{r}
+qnorm(0.05,lower.tail = F)
+```
+
+- Below is a function that creates the two distribution that you have seen in the lectures
+- The splitVal holds the value of the test statistic
+- Into this function, add a calculation that determines the beta or type II error
+- Include this type II error as a subtitle
+
+```{r}
+library(ggplot2)
+
+theExercise <- function(sampSize=1000,h0Mean=0, trueMean=3, shadeType="H0",shadeDirection="Right",alpha=0.05){
+  splitVal=qnorm(alpha,lower.tail = F)
+  
+  input <- seq((h0Mean-3),(3+trueMean),length.out = sampSize)
+  x <- dnorm(input,mean = h0Mean)
+  y <- dnorm(input,mean = trueMean)
+  df <- data.frame(input=c(input,input),data=c(x,y),label=c(rep("H0",sampSize),rep("True",sampSize)))
+  
+  thePlot <- ggplot(df,aes(input,data))+
+    geom_line(aes(color=label))+
+    geom_vline(xintercept = splitVal)+
+    theme_bw()
+  
+  #DO NOT WORRY ABOUT THIS STUFF! ###############################################
+  if(shadeDirection=="Left"){
+    shadeMin=-Inf
+    shadeMax=splitVal
+  }
+  if(shadeDirection=="Right"){
+    shadeMin=splitVal
+    shadeMax=Inf
+  }
+  hilight <- df[df$input>shadeMin & df$input<shadeMax & df$label==shadeType,]
+  hilight$ymin <- rep(0,nrow(hilight))
+  thePlot <- thePlot+geom_ribbon(hilight,mapping=aes(x=input,ymin=ymin,ymax=data),alpha=0.4)
+  ################################################################################
+  
+  thePlot
+}
+
+theExercise()
+```
+
+
+
+
+Challenge:
+- Include if statements that will report the area of any region specificed
+
+
+

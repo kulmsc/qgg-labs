@@ -1,0 +1,371 @@
+---
+title: "Quantitative Genomics and Genetics 2019"
+subtitle: "Computer Lab 13"
+author: "Scott Kulm"
+date: "5/2/2019"
+output: html_document
+---
+
+--------------------------------------------------------------------------
+
+### Review
+
+ - It is important to scale your data before PCA, otherwise your unscaled vectors will appear to be far more important than they otherwise are
+ 
+```{r}
+ barplot(summary(prcomp(USArrests))$importance[2,])
+```
+
+By looking at the covariance we can see that there is far more structure in the data, which should produce multiple important principle components since the data cannot simply be reduced down to one dimension.
+
+```{r}
+cov(USArrests)
+```
+
+To fix the problem we use scale=T.
+
+```{r}
+ barplot(summary(prcomp(USArrests, scale=T))$importance[2,])
+```
+
+- Covariates can be included in most of the methods we learned so far by including it in the X matrix.  Note that in previous pval calculators we end up with a line that cbinds all of our vectors together.  To introduce the covariate we simply cbind it as well:
+
+```{r, eval=F}
+X_mx <- cbind(1,xa_input,xd_input) #current model
+X_mx <- cbind(1,xa_input,xd_input,covariate) #covariate model
+```
+
+Note that within the added covariate model you will need another beta value.  So if you are testing the covariate in a logistic regression the initial beta vector will be of length 4 instead of 3.
+
+### Bayes Rule
+
+So far we have been dealing with parameter estimates that gave us an answer in the form of fixed numbers. For example, with the maximum likelihood estimators for $\theta = [\beta_{\mu}, \beta_a,\beta_d]$, we got fixed values for each parameter that we were interested in. In other words, we assumed that there are fixed true values of the parameters and used the estimaters that maximized the likelihood as our best guesses.
+
+
+
+$$ L(\theta | data) \propto p(data | \theta) $$
+
+
+$$ MLE(\hat{\theta}) = argmax_{\theta}(L(\theta | data)) $$  
+
+The major difference between this and bayesian inference is that in bayesian inference we assume that there is a underlying "distribution" for our parameters not a single number. In order to estimate this distribution from a given sample, Bayes' theorem is used. 
+
+$$ p(A | B) = \frac{p(B | A ) p (A)}{p(B)} $$
+
+When we substitute A with $\theta$ and B with the data we get our bayesian formulation for the posterior distribution of the parameters given the observed data. 
+
+$$ p(\theta| data) = \frac{p(data | \theta ) p (\theta)}{p(data)} $$
+
+Rewriting this expression as a proportion we can clearly see a relationship between our original frequentist expression and the current Bayesian exprssion.  The major difference is the fact that we know include the prior distribution into our total estimation.
+
+$$ p(\theta| data) \propto L(\theta | data ) \cdot p (\theta) $$
+
+
+However, in order to get an actual Bayesian estimation we cannot use a proportion, which means that we need to calculate the denominator.  In order to calculate the probability of our data (which seems like it should just be one), we again employ the basic law of probability:
+
+$$ p(data) = \sum p(data | \theta_i)p(\theta_i)    $$
+
+While we can form this sum if the possible thetas are a trivial set.  For example, a classic Bayesian problem is that there are two bags, the first has 3 red and 4 blue, the second has 5 blue and 3 red.  If a red ball is drawn what is the probability it came from the first bag.  Here the denominator would be the sum of two possible thetas, either bag 1 or bag 2.  Assuming the prior for choosing the bag is proportional to the number of balls in the bag, the math for this problem follows:
+
+$$ P(bag_1 | red) = \frac{P(red | bag_1)P(bag_1)}{\sum P(red | bag_i)} = \frac{(3/7)(7/15)}{(3/7)(7/15) + (3/8)(8/15)} $$
+
+However, in real life scenarios there are not just two bags but rather likely thousands in the discrete case or an infinite number in the continous case.  This continous case will require an integral.  If the combination of the likelihood and prior are complicated it is likely that this integral will become intractable, meaning we cannot solve it.  
+
+However, there is another way around this problem.  Instead of calculating this posterior probability directly we will simply pull single values from it and produce an empirical histogram of the distribution, thereby aproximating the true distribution.  With this approximated distribution we can continue with any hypothesis testing/ credible interval building that we want to do.
+
+### Markov Chain Monte Carlo - Theory
+
+The objective of Bayesian inference is to estimate the distribution of $\theta$ given the data. In other words, we are updating our belief about the parameters given the observed data as evidence. However, as you can see it takes a very complicated form which makes evaluating the posterior distribution a complicated problem. This is why we use methods like the Markov Chain Monte Carlo (MCMC) to generate "samples" that will represent the posterior distribution. The Metropolis-Hastings alogrithm is a widely used algorithm for this purpose. 
+
+The problem with generating samples is that we do not know theta.  For example we cannot draw a sample from the normal distribution if we do not know the mean of the distribution.  To resolve this problem we use two powerful techniques: Markov Chains and Monte Carlo Sampling.
+
+Monte Carlo is a fancy way of saying educated random sampling.  This is exactly what we want to do in this case, make educated samples from all possible sets of posterior distributions such that the group of samples we finally achieve matches one large sample from the true posterior distribution.  One example of how Monte Carlo works is through estimation of area.  Specifically if we wanted to measure the area of the batman logo it would be rather difficult to integrate all of the area, however we could easily drop a thousand points into the plot and ask what proportion is within the logo.  We can then use this proportion and the total plot area to subtract out the area of the batman logo.
+
+```{r}
+require(ggplot2)
+ 
+f1 <- function(x) {
+    y1 <- 3*sqrt(1-(x/7)^2)
+    y2 <- -3*sqrt(1-(x/7)^2)
+    y <- c(y1,y2)
+    d <- data.frame(x=x,y=y)
+    d <- d[d$y > -3*sqrt(33)/7,]
+    return(d)
+}
+ 
+x1 <- c(seq(3, 7, 0.001), seq(-7, -3, 0.001))
+d1 <- f1(x1)
+
+x2 <- seq(-4,4, 0.001)
+y2 <- abs(x2/2)-(3*sqrt(33)-7)*x2^2/112-3 + sqrt(1-(abs(abs(x2)-2)-1)^2)
+d1 <- rbind(d1,data.frame(x=x2,y=y2))
+
+x3 <- c(seq(0.75,1,0.001), seq(-1,-0.75,0.001))
+y3 <- 9-8*abs(x3)
+d1 <- rbind(d1,data.frame(x=x3,y=y3))
+
+x4 <- c(seq(0.5,0.75,0.001), seq(-0.75,-0.5,0.001))
+y4 <- 3*abs(x4)+0.75
+d1 <- rbind(d1,data.frame(x=x4,y=y4))
+
+x5 <- seq(-0.5,0.5,0.001)
+y5 <- rep(2.25,length(x5))
+d1 <- rbind(d1,data.frame(x=x5,y=y5))
+
+x6 <- c(seq(-3,-1,0.001), seq(1,3,0.001))
+y6 <- 6 * sqrt(10)/7 +
+    (1.5 - 0.5 * abs(x6)) * sqrt(abs(abs(x6)-1)/(abs(x6)-1)) -
+    6 * sqrt(10) * sqrt(4-(abs(x6)-1)^2)/14
+d1 <- rbind(d1,data.frame(x=x6,y=y6))
+
+
+ggplot(data=d1)+geom_point(aes(x,y))+theme_bw()
+
+randomGuess <- data.frame(x=runif(100,-8,8),y=runif(100,-3,3))
+ggplot(data=d1)+geom_point(data=randomGuess,aes(x,y),color="red")+geom_point(aes(x,y))+theme_bw()
+```
+
+Markov chain is the second component of the MCMC process.  A Markov chain in very simple terms is a series of actions where the present action is only determined by the last action (not any of the actions before that).  Markov chains have the very nice feature that they will always end up with the same exact answer if you take enough actions.  One example of this is predicting weather (the action of the Gods).  We may know that if it is currently sunny then tomorrow it will also be sunny with a certain probability.  If the only other possible weather event is rain we have a 2x2 matrix of possible weather transitions.  If we want to know the probability of it being sunny tomorrow we add up the probability of it going sunny to sunny and rainy to sunny. Luckily for us all of this math can be captured through squaring the transition matrix.
+
+```{r}
+library(expm)
+
+weatherTransitions <- t(matrix(c(0.9,0.1,0.5,0.5),nrow=2))
+tomorrowWeatherTransitions <- weatherTransitions %^% 2
+```
+
+To make a prediction of weather we simply multiply the transition matrix for the given day we are interested in by the current weather.  As we go out many days we notice an interesting phenomena, that the predicted weather stays the same.  
+
+```{r}
+currentWeather <- t(as.matrix(c(0.1,0.9)))
+tomorrowWeather <- currentWeather %*% (weatherTransitions%^%2)
+weekWeather <- currentWeather %*% (weatherTransitions%^%7)
+monthWeather <- currentWeather %*% (weatherTransitions%^%30)
+```
+
+The goal of MCMC is to utilize this principal - build a Markov Chain that will reach a stable distribution that matches the posterior distribution.  While this example has a weather transition matrix to determine the next action the MCMC algorithm will have a more simple rule of either yes take the action or no go back to a completely random action.  If we go back to a totally random action we utilize the Monte Carlo sampling to pick the action.  The precise mechanics of the MCMC algorithm are best illustrated in an example.
+
+A great introduction to this principal is shown within: https://blog.stata.com/2016/11/15/introduction-to-bayesian-statistics-part-2-mcmc-and-the-metropolis-hastings-algorithm/ .
+
+
+### MCMC - Simple Example
+
+This example comes from https://stephens999.github.io/fiveMinuteStats/MH-examples1.html .
+
+As this is a genetics class, let us consider Hardy-Weinberg Equilibrium.  The HWE principle states that if p is the frequency of allele A then the genotypes AA, Aa and aa will have the frequencies p^2, 2p(1-p) and (1-p)^2.  We may want to test if our variant is within HWE.  The simplest prior for this example is an uniform distribution, meaning we do not really have any idea what the frequency is but we believe that all variants have a frequency that is random.  We can implement this prior by saying any frequency within the acceptable range (1 to 0) has the same probability.
+
+```{r}
+prior = function(p){
+  if((p<0) || (p>1)){ 
+    return(0)
+  } else {
+    return(1)
+  }
+}
+```
+
+The next component we need is the likelihood.  Without going into details, I will simply provide it below.  Some relation to the binomial likelihood is hopefully clear/motivating.
+
+```{r}
+likelihood = function(p, nAA, nAa, naa){
+  return(p^(2*nAA) * (2*p*(1-p))^nAa * (1-p)^(2*naa))
+}
+```
+
+To run the MCMC algorithm we begin with a certain guess of what p is.  We then generate a subsequent guess based on the first, thereby taking our first action on the Markov Chain (similar to predicting rain because it is raining today).  An important parameter in this step is how much we change the current p by, ultimately there is no good answer to this question and it will have to be determined by experience.
+
+```{r}
+currentp <- 0.5
+newp <- currentp + rnorm(1,0,0.01)
+```
+
+We then ask if this next action/frequency is a good one.  We do this with Bayes Theorem, dividing the posterior probability from the original and new p/action.  The advantage of using Bayes Theorem in this case is that the denominators cancel, so we only need to multiply the likelihood and prior. 
+
+```{r}
+nAA <- 50
+nAa <- 21
+naa <- 29
+A <- prior(newp)*likelihood(newp,nAA,nAa,naa)/(prior(currentp) * likelihood(currentp,nAA,nAa,naa))
+```
+
+We then finally use this A value to determine whether or not the new p is good or not.  In this example we will randomly pull from the uniform distribution, and use the result as our comparison.  After all MCMC is a stochastic process and therefore needs some randomness.
+
+```{r}
+if(runif(1)<A){
+  currentp = newp       # accept move with probabily min(1,A)
+} else {
+  currentp = currentp        # otherwise "reject" move, and stay where we are
+}
+```
+
+We may wrap this in a function to actually carry out the MCMC algorithm, get the values and plot the results.
+
+```{r}
+psampler = function(nAA, nAa, naa, niter, pstartval, pproposalsd){
+  p = rep(0,niter)
+  p[1] = pstartval
+  for(i in 2:niter){
+    currentp = p[i-1]
+    newp = currentp + rnorm(1,0,pproposalsd)
+    A = prior(newp)*likelihood(newp,nAA,nAa,naa)/(prior(currentp) * likelihood(currentp,nAA,nAa,naa))
+    if(runif(1)<A){
+      p[i] = newp       # accept move with probabily min(1,A)
+    } else {
+      p[i] = currentp        # otherwise "reject" move, and stay where we are
+    }
+  }
+  return(p)
+}
+
+z=psampler(50,21,29,10000,0.5,0.01)
+x=seq(0,1,length=1000)
+hist(z,prob=T)
+lines(x,dbeta(x,122, 80)) 
+```
+
+Here the histogram were the frequencies that we achieved and the line reflects the true distribution (we know the HWE actually follows a beta distribution).  Clearly we did pretty well and proved that MCMC works.  One option that many people take is to have a burn-in period.  This means that in the beginning our Markov Chain might not have located the approximately correct frequency and the guesses we are making are pretty wrong.  We can see this if we plot only first few frequencies.  The solution to this problem is only taking the last set of iterations and throwing away the other iterations as burn-in.
+
+```{r}
+x=seq(0,1,length=200)
+hist(z[1:200],prob=T)
+lines(x,dbeta(x,122, 80))
+```
+
+### MCMC - Linear Regression
+
+This example comes from https://theoreticalecology.wordpress.com/2010/09/17/metropolis-hastings-mcmc-in-r/ .
+
+The HWE example was fun although we can also look at slightly more complicated problems, such as linear regression.
+
+First we are going to create a few data points with random values of Xa and using the parameters $\beta_{\mu} = 1.15, \beta_a = 3.5, \sigma = 2$. All the values are completely arbitrary so you are welcome to try it with different ones.
+
+```{r data_generation, comment=NA, fig.align='center'}
+set.seed(2019) #setting seed for reproducible results
+
+# Generate linear regression sample
+# creating Xa values (continuous)
+Xa <- runif(100,min=-5,max = 5)
+
+# True parameter values that we assume that we don't know before the analysis.
+beta.mu <- 1.15
+beta.a <- 3.5
+sd <- 2
+
+# Simulate Y based on the parameters
+Y <- beta.mu + Xa * beta.a + rnorm(100,0,sd)
+
+# A visual check of the data is always a good practice to inlcude
+plot(Xa,Y, main="Xa vs Y")
+```
+
+So far everything seems familiar to us. Now we will have to set prior distributions on the parameters that we are interested in. For the sake of simplicity I chose a standard normal prior on $\beta_{\mu},\beta_a$ and an exponential prior on $\sigma_{epsilon}$. For the algorithm we only need the point densities of the parameters, so I am using `dnorm` and `dexp`. Since we usually deal with log likelihoods I also converted the densities to log scale by giving them the option `log = TRUE`.  The reason that we convert to log scale is that computers struggle with very small numbers, this is known as round off error and it is a big problem in many numerical methods.  The log will convert this small number to a big number, and since it is a monotonic transformation we are not losing any real information.
+
+```{r}
+# Prior distribution
+log.prior <- function(parameters){
+    beta.mu <- parameters[1]
+    beta.a <- parameters[2]
+    sd <- parameters[3]
+    
+    mu.prior <- dnorm(beta.mu,  log = TRUE)  # normal prior on beta.mu (mean 0, sd = 1)
+    a.prior <- dnorm(beta.a,  log = TRUE)    # normal prior on beta.a (mean 0, sd = 1)
+    sdprior <- dexp(sd, log = TRUE)          # exponentional prior on sd
+    return(mu.prior+a.prior+sdprior)
+}
+```
+
+
+Also we need to calculate the likelihood in order to get to the posterior.  This process involves simply comparing the actual data to a distribution defined by the parameters.  Specifically the parameters boil down to an estimate of y that then comprises the mean of the distribution.
+
+
+```{r MCMC, comment=NA, fig.align='center'}
+
+log.likelihood <- function(parameters,Xa,Y){
+    beta.mu <- parameters[1]
+    beta.a <- parameters[2]
+    sd <- parameters[3]
+     
+    y.hat <- beta.mu + Xa * beta.a
+    likelihood <- dnorm(Y, mean = y.hat, sd = sd, log = TRUE)
+    sum.likelihood <- sum(likelihood)
+    return(sum.likelihood)   
+}
+```
+
+
+Now that we have the likelihood and the prior, we can easily get the posterior through a simple function that sums up the log likelihood and the priors. 
+
+
+```{r , comment = NA}
+log.posterior <- function(parameters, Xa,Y){
+   posterior <- log.likelihood(parameters,Xa,Y) + log.prior(parameters)
+   return (posterior)
+}
+```
+
+The proposal function is takes care of the part where we "jump" around in the $\theta$ space.  This is similar to our rnorm adding a small change to our previous p in the HEW example. It is simply picking a value from a normal distribution centered around the current parameter values (although keeping the sd positive by taking the absolute value).
+
+```{r, comment = NA, fig.align='center'}
+proposal_func <- function(parameters){
+    proposal.output <- rnorm(3,mean = parameters, sd = c(0.2,0.2,0.2)) 
+    proposal.output[3] <- abs(proposal.output[3])
+    return(proposal.output) 
+}
+```
+
+We have everything we need to run the Metropolis-Hastings algorithm, so let's give it a try by running the following code section. 
+
+
+```{r, comment = NA, fig.align='center'}
+MH_MCMC <- function(startvalue, iterations,Xa,Y){
+    samples <- matrix(nrow = iterations+1, ncol = 3)
+    samples[1,] <- startvalue
+    for (i in 1:iterations){
+      
+        proposal <- proposal_func(samples[i,])
+        
+        probabilty <- exp(log.posterior(proposal,Xa,Y) - log.posterior(samples[i,],Xa,Y))
+        unif <- runif(1)
+        if (unif < probabilty){
+            samples[i+1,] <- proposal     # update with a high probability
+        }else{ 
+            samples[i+1,] <- samples[i,]  # Do not update with a low probability
+        }
+    }
+    return(samples)
+}
+ 
+initial.value <- c(0,0,0)   # set strarting values
+samples1 <- MH_MCMC(initial.value, 10000,Xa,Y) # Run the MH algorithm with 10000 iterations
+```
+ 
+ We can plot everything to check out how it worked:
+ 
+```{r}
+burnIn = 1000  # discard the first 1000 iterations 
+# Plot the results
+par(mfrow = c(2,3))
+hist(samples1[-(1:burnIn),1], main="Posterior of beta.mu", xlab="True value = red line" )
+abline(v = mean(samples1[-(1:burnIn),1]))
+abline(v = beta.mu, col="red" )
+hist(samples1[-(1:burnIn),2], main="Posterior of beta.a", xlab="True value = red line")
+abline(v = mean(samples1[-(1:burnIn),2]))
+abline(v = beta.a, col="red" )
+hist(samples1[-(1:burnIn),3], main="Posterior of sd", xlab="True value = red line")
+abline(v = mean(samples1[-(1:burnIn),3]) )
+abline(v = sd, col="red" )
+plot(samples1[-(1:burnIn),1], type = "l", xlab="True value = red line" , main = "samples1 values of beta.mu")
+abline(h = beta.mu, col="red" )
+plot(samples1[-(1:burnIn),2], type = "l", xlab="True value = red line" , main = "samples1 values of beta.a")
+abline(h = beta.a, col="red" )
+plot(samples1[-(1:burnIn),3], type = "l", xlab="True value = red line" , main = "samples1 values of sd")
+abline(h = sd, col="red" )
+ 
+```
+
+
+
+***
+### That's it for this semester's computer lab. 
+### Good luck on the project & final exam. Cheers!
+***

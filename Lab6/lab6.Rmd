@@ -1,0 +1,185 @@
+---
+title: "Quantitative Genomics and Genetics 2019"
+subtitle: "Computer Lab 6"
+author: "Scott Kulm"
+date: "3/7/2019"
+output: html_document
+---
+
+--------------------------------------------------------------------------
+
+### 0. The Terminal
+
+https://docs.google.com/presentation/d/1CrlTVnLx4eQGuAVDt0q1NRyp7P6dPS_q0E-erCmQ3IY/edit?usp=sharing
+
+
+
+### 1. Handling Genotype Data 
+
+- We began to cover genome wide association analyses (GWAS) in class and this lab will cover the basic data handling practices in GWAS.
+
+- In order to conduct a GWAS we need genetics and the things that the genetics are associated to
+
+- These two things are almost always kept within 2, and only 2, different files
+
+- Let's explore the typical files you will likely be investigating! 
+
+
+**Exercise 1**
+
+- First let's start with the genetic or genotypic data
+
+- As we discussed in Lab 2, you can read data into the R environment with read.table or read.csv
+
+- The only difference is the read.table assumes the separator are blank spaces and read.csv assumes commas
+
+- The file we have is a csv, so we will use read.csv
+
+```{r, comment = NA, eval = FALSE}
+geno_import <- read.csv("genotype_data.csv", 
+                      header = TRUE, 
+                      stringsAsFactors = FALSE,
+                      row.names = 1)
+
+head(geno_import)
+```
+
+- As we can see from the row and column names, the samples are in the rows and the genotypes are in the columns
+
+- Each pair of columns will have SNPs for a given position (one for each chromosome). For example, if the first row has "A" in column 1 and "T" in column 2 this individual has a genotype of "AT" for the first position.
+
+- Can you tell me how many samples and how many genotype positions there are?
+
+- Can you identify a problem with the data, and guess why this happens?
+
+
+```{r, echo = FALSE, eval = FALSE}
+# There should be 100 samples and 400 genotype columns (meaning 200 genotype positions)
+
+# If you read the data in with the following function call 
+# column 253 and 254 and 395 will have TRUE instead of T saved
+head(geno_import[,253:254])
+str(geno_import[,253:254])
+```
+
+- As you can see the T genotypes are being interpreted as TRUE rather than the T base
+
+- We can fix this by specifying the class of data when we read in the file
+
+
+```{r, comment = NA, echo = FALSE, eval = TRUE}
+
+# We can specify the column classes to character
+geno_import <- read.csv("./genotype_data.csv", 
+                      header = TRUE, 
+                      stringsAsFactors = FALSE,
+                      row.names = 1, colClasses = "character")
+
+# to avoid T being interpreted as TRUE, we can project the characters to lower case
+geno_import <- apply(geno_import, 2, tolower)
+head(geno_import[,253:254])
+```
+
+- Alternatively, we can go and change the data by column
+
+```{r, comment = NA, eval = FALSE}
+geno_import <- read.csv("./genotype_data.csv", 
+                      header = TRUE, 
+                      stringsAsFactors = FALSE,
+                      row.names = 1)
+
+for(i in 1:ncol(geno_import)){
+  geno_import[,i] <- as.character(geno_import[,i])
+  geno_import[geno_import[,i]=="TRUE",i]="T" 
+}
+head(geno_import[,253:254])
+```
+
+**Exercise 2**
+
+- Now that we have loaded the data into R, we would like to prepare it for analysis. 
+
+- Since we cannot really do math on letters we must first convert the genotypes into numbers. 
+
+- In class we learned (will?) two methods for creating genotype dummy variables, the additive version (Xa) and the dominance version (Xd).
+
+- The additive genetic model:
+
+$$X_a(A_1 A_1)=-1, X_a(A_1 A_2)=0, X_a(A_2 A_2)=1$$
+
+- The dominant genetic model
+
+$$X_d(A_1 A_1)=-1, X_d(A_1 A_2)=1, X_d(A_2 A_2)=-1$$
+
+- How would you convert the character matrix of individual SNPs into dummy variables? Let's do it together!
+
+- Let's work on Xa, to start we must remember that two columns are for one person. For one small example, pull out a single sample:
+
+```{r, comment = NA, eval = TRUE, echo = FALSE}
+geno_in <- geno_import[,1:2]
+head(geno_in)
+```
+
+- To determine whether G or A should be A1, we must determine the minor allele
+
+- We can count the number of alleles in a vector with the table() function
+
+```{r, comment = NA, eval = TRUE, echo = FALSE}
+geno_count <- table(c(geno_in[,1],geno_in[,2]))
+minor_allele <- names(geno_count[geno_count == min(geno_count)])
+geno_count
+```
+
+- Last step, we must count the number of minor alleles for each person
+
+```{r, comment = NA, eval = TRUE, echo = FALSE}
+xa_result <- (geno_in[,1]!=minor_allele) + (geno_in[,2]!=minor_allele)
+xa_result
+```
+
+- Now just pack everything into a function 
+
+```{r, comment = NA, eval = TRUE, echo = FALSE}
+xa_converter <- function(geno_in){
+  geno_count <- table(c(geno_in[,1],geno_in[,2]))
+  minor_allele <- names(geno_count[geno_count == min(geno_count)])
+  xa_result <- (geno_in[,1]!=minor_allele) + (geno_in[,2]!=minor_allele)
+  return(xa_result)
+}
+
+xa_matrix <- matrix(NA, nrow = nrow(geno_import), ncol = ncol(geno_import)/2)
+
+for (i in 1:(ncol(geno_import)/2)){
+    xa_matrix[,i] <- xa_converter(geno_import[,c(2*i -1, 2*i)])  
+}
+
+xa_matrix-1
+```
+
+- Another way to do it:
+
+```{r, comment = NA, eval = TRUE, echo = FALSE}
+xa_converter <- function(geno_in){
+  geno_count <- table(c(geno_in[,1],geno_in[,2]))
+  minor_allele <- names(geno_count[geno_count == min(geno_count)])
+  major_allele <- names(geno_count[geno_count == max(geno_count)])
+  geno_together <- paste0(geno_in[,1],geno_in[,2])
+  return_coding=rep(NA,length(geno_together))
+  return_coding[geno_together==paste0(minor_allele,minor_allele)] <- -1
+  return_coding[geno_together==paste0(minor_allele,major_allele) | geno_together==paste0(major_allele,minor_allele) ] <- 0
+  return_coding[geno_together==paste0(major_allele,major_allele)] <- 1
+  return(return_coding)
+}
+
+xa_matrix <- matrix(NA, nrow = nrow(geno_import), ncol = ncol(geno_import)/2)
+
+for (i in 1:(ncol(geno_import)/2)){
+    xa_matrix[,i] <- xa_converter(geno_import[,c(2*i -1, 2*i)])  
+}
+
+xa_matrix
+```
+
+** Exercise **
+Using the same genotype matrix, convert the data into Xd coding. Filter out any genotypes where the minor allele frequency is less than 0.1.
+
