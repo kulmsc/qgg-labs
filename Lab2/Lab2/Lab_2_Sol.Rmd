@@ -1,0 +1,563 @@
+---
+title: "Quantitative Genomics and Genetics 2020"
+subtitle: "Computer Lab 2"
+author: "Scott Kulm"
+date: "02/06/2020"
+output: html_document
+---
+
+* R Markdown
+* Debugging
+* Functions   
+* For loops
+* While loops
+* If/else statements   
+* Vector and Matrix calculation   
+
+--------------------------------------------------------------------------------------
+
+## 0. Logistics
+- By now, I am assuming everyone is on both on CMS and Piazza
+
+- If you are not please tell me at the end of lab
+
+## 1. R Markdown
+- R Markdown is a file type that makes it easy to doccument your code
+
+  - Similar to Jupyter Notebooks
+  
+  - Particulary good for recording notes, or homework
+
+- Some of this is the same as Latex, some of it is not (generally easier)
+
+- In general in Rmd you have text and code chunks
+
+### Code chunks
+
+ - Can be treated as a mini .R file
+ 
+```{r}
+example.vector1 <- 1:10
+mean(example.vector1)
+```
+
+- If reading this in html you have to write three backticks, then r in braces, followed by your code, then three more back ticks
+
+- You have some code options   
+
+  - `include = FALSE` prevents code and results from appearing in the finished file. R Markdown still runs the code in the chunk, and the results can be used by other chunks.   
+  
+  - `echo = FALSE` prevents code, but not the results from appearing in the finished file. This is a useful way to embed figures.   
+
+### Text Formatting
+
+- Outside of the code chunks you can write just like you would in Microsoft Word
+
+- Although formatting must be done similar to LaTeX
+
+#### Standard text formating
+- *italics* by doing \*italics\*
+- **bold** by doing \*\*bold\*\*
+
+#### Latex equations
+- conditional probability: $Pr(X_1|X_2) = \frac{Pr(X_1 \cap X_2)}{Pr(X_2)}$
+- matrix: $$A_{m,n} =
+ \begin{pmatrix}
+  a_{1,1} & a_{1,2} & \cdots & a_{1,n} \\
+  a_{2,1} & a_{2,2} & \cdots & a_{2,n} \\
+  \vdots  & \vdots  & \ddots & \vdots  \\
+  a_{m,1} & a_{m,2} & \cdots & a_{m,n}
+ \end{pmatrix}$$
+
+#### Headings
+
+- Specify Headings, or larger text with the \# sign
+
+- The more \#'s that preceed the heading the smaller it will be
+
+### Knitting and Final Notes
+
+- To convert your Rmd into a non-editable doccument use the Knit button on the top of RStudio
+
+  - You can either do html or pdf
+  
+  - The pdf often requires slightly more formatting, and requires TeX to be installed, see this github thread for instillation help: https://github.com/rstudio/rmarkdown/issues/1285#issuecomment-374340175
+
+- Much more information is here: https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+
+- Remember that the code chunks are just like an R script so don't do something in them you should instead do in the console (experimenting around), or something you'll only ever do once (install a package)
+  
+
+--------------------------------------------------------------------------------------
+
+
+
+
+### 4. for loops
+
+- For loops are mainly used in cases where you want to do a task multiple times.
+
+- Note the notation of R-command (parameters) { what to do} is the same as the function
+
+```{r}
+N <- 3
+for ( i in 1:N ){
+    cat("Processing loop number = ",i,"\n")
+}
+```
+
+- You can also create a loop within a loop
+
+```{r}
+for ( outer in 1:3 ){
+    cat("Processing Outer Loop #", outer, "\n")
+  for ( inner in 1:2 ){
+      cat("Processing |_ Inner Loop #", inner, "\n")
+    }
+}
+```
+
+**Question 1**
+
+- What is the final value of N ?
+
+```{r, eval = FALSE}
+N <- 3
+for( i in 1:N){
+  cat("Processing loop = ", i, "\n")
+  N <- N + 1
+}
+print(N)
+```
+
+- How can we fix this ?
+
+--------------------------------------------------------------------------------------
+
+### 5. While loops
+
+- While loops are used when you want to repeat something until you hit a certain condition, for example, keep looping until a certain value is reached. Be careful that your while loops will finish-otherwise, R will continue executing them.
+
+```{r}
+N <- 3
+while ( N < 10){
+    cat("N = ",N,"\n")
+    N = N+2
+}
+```
+
+--------------------------------------------------------------------------------------
+
+### 6. If / else statements 
+
+- By using if and else statements you can insert condition specific executions in your script
+
+- The code inside an if statement will only be executed when the condition is TRUE
+
+```{r, comment = NA, eval = FALSE}
+if (condition) {
+  do stuff
+} else {
+  do stuff
+}
+```
+
+```{r, comment = NA, eval = FALSE}
+# OR you can add more levels by using else if
+if(condition){
+  do stuff
+} else if (condition 2){
+  do stuf
+} else {
+  do stuff
+}
+```
+
+- Here is a simple example
+
+```{r, comment = NA}
+example.vector <- seq(1, 25, by= 2)
+# Loop over individual elements in example.vector
+for(i in example.vector){
+    if( i < 10 ){
+        cat(i, "is smaller than 10 \n") 
+    } else if ( 10 <= i & i <= 20){
+        cat(i, "is in the interval [10,20] \n")
+    } else {
+        cat(i, "is larger than 20 \n")
+    }
+}
+```
+
+
+**Question 2**
+
+What will happen here?
+
+```{r, eval = FALSE}
+x <- "U"
+if(x){
+ print("works")
+}
+```
+
+```{r, eval = FALSE}
+x <- T
+if(x){
+  print("works")
+}
+```
+
+--------------------------------------------------------------------------------------
+
+
+## 3. Functions
+
+- We learned that a function is something that takes in an input and gives you an output.
+
+- Functions require "( )", whereas data objects will have "[ ]"
+
+- R has many built in functions for commonly used methods in statistics.
+
+```{r, comment=NA}
+# Examples of built in functions 
+example.vector1 <- c(5,2,3,7,1,1,2,9,9)
+
+# a function that calculates the mean
+mean(example.vector1) 
+
+# a function to index specific values
+which(example.vector1==3)
+```
+
+- We can also build custom functions. 
+
+```{r, comment=NA}
+# the syntax for declaring functions, note the {} after function()
+log10_add <- function(input1,input2){   # all the inputs are specified within the ( )
+  cat("This is a custom function \n")   
+  cat("The inputs are = ",input1,input2,"\n")  # showing you the inputs 
+  output <- log10(input1) + log10(input2)       # creating an output within the function
+  cat("The output is = ",output,"\n")          # print the output
+  return(output)                               # return specifies the output
+}
+
+# Now we can call our custom functions like this
+log10_add(100,1000)
+
+# Note that the variable output is not created in our workspace 
+ls()
+
+# in order to save the result of a function to a variable we have to assign it to a variable
+test.output <- log10_add(100,1000)
+test.output
+```
+
+
+- There are many ways to set your function arguments
+
+```{r, comment = NA, eval = FALSE}
+test_function <- function(y = myInput){
+  output <- x + y
+  return(output)
+}
+
+myInput <- 3
+test_function() #the default function argument is myInput
+test_function(y=5) #we now override the default to be 5
+```
+
+- Short intro to scope: what happens in the function, stays in the function
+
+- Which means any object you want out of the function, needs to be returned
+
+```{r, comment = NA, eval = FALSE}
+output <- 5
+
+test_function <- function(y = myInput){
+  output <- x + y
+  cat("The output is ",output,"\n")
+  return(output)
+}
+
+myOuput <- test_function(4)
+print(myOuput)
+print(output)
+```
+
+
+**Question 3**
+
+- Can you guess what is going to happen?
+
+```{r, comment = NA, eval = FALSE}
+x <- 11
+
+test_function <- function(y){
+  output <- x + y
+  return(output)
+}
+
+test_function(2) 
+```
+
+**Question 4**
+
+- Can you guess what is going to happen?
+
+```{r, comment = NA, eval = FALSE}
+starter <- 3
+test_function <- function(myInput = 5){
+  middle_man <- starter + 3
+  output <- starter + myInput
+  return(output)
+}
+
+test_function() 
+
+print(middle_man)
+```
+
+
+**Question 5**
+
+- Can you guess what is going to happen?
+
+```{r, comment = NA, eval = FALSE}
+test_function <- function(myInput = 5){
+  output <- 5 + myInput
+  return(output)
+}
+test_function(m=10) 
+```
+
+
+#### Installing and Loading packages
+
+- We can also use functions by installing published packages if somebody else did the hard work for us.
+
+- We can install packages that are published on CRAN by using install.packages().
+
+```{r}
+# install.packages("ggplot2")
+```
+
+- Other packages can be install following the prompts from GitHub or Bioconductor: https://github.com/brooke-watson/BRRR
+
+- Once the installation is complete, we to load the package into your current R session in order to use it.
+
+```{r}
+library(ggplot2)
+require(ggplot2)
+```
+
+- Now we can use the functions from ggplot2
+
+- ggplot is a really great function that I promise we'll get back to soon
+
+- For now just note there are also base R functions that form plots, but ggplot looks much better
+
+```{r}
+x <- seq(1,10)
+y <- sample(1:100,10,replace=T)
+ggplot(data.frame(x,y), aes(x,y)) + geom_point()
+ggplot(data.frame(x,y), aes(x,y,color="red")) + geom_point() +labs(title="This is a title",subtitle="This is a subtitle")
+plot(x,y)
+```
+
+--------------------------------------------------------------------------------------
+
+
+
+### 7. Vector and Matrix calculations
+
+- If you want to modify each element of a vector by a scalar value you can use the math operations that we have learned last week.
+
+```{r}
+example.vector1
+2 * example.vector1
+1 + example.vector1
+example.vector1 ^2
+```
+
+- The same applies for matrices 
+
+```{r}
+example.matrix1 <- matrix(c(1,1,1,2,2,2), nrow = 2, ncol = 3, byrow= TRUE)
+example.matrix1
+2 * example.matrix1
+example.matrix1 ^ 2
+example.matrix1 - 1
+```
+
+- Here is how you can do matrix calculations
+
+```{r, comment = NA}
+# t() is transposing the matrix
+example.matrix1 %*% t(example.matrix1)
+# Note the dimensions 2 x 3 %*% 3 x 2  = 2 x 2 
+```
+
+- Here are some useful functions that can be used in matrix calculations 
+
+```{r, comment = NA}
+# creating a diagonal matrix with the first input as values on the diagonal
+diag(2,nrow = 3)
+
+# calculating the inverse of a matrix
+A <- matrix(c(2,-3,1,0.5),nrow = 2)
+solve(A)
+
+# we can check this by 
+A %*% solve(A) # which results in an identity matrix 
+```
+
+--------------------------------------------------------------------------------------
+
+## 2. Debugging
+By now, you may have noticed that your code in R doesn't do what you wanted it to, or it may result in an error message. You may have had some errors arise while compiling Latex documents. The process of fixing those errors and getting your code to do what you want it to do is called debugging. 
+
+## Some suggested debugging steps
+- * **Read the error message.** 
+- Is it telling you the error is occurring on a certain line? If so, look closely at that line. 
+
+- Is it telling you that a variable is undefined? If so, make sure you spelled all of your variable names the same way in every location. 
+
+- Is telling you that it can't find a file or open a location? Make sure that the file exists and that you're in the proper directory. 
+
+- Make sure that you aren't missing a parenthesis, brace, quote, or bracket. 
+
+- Check what values your variable contain. Make sure that you aren't accidentally putting values in the wrong place. 
+
+- Use the built in R Studio debugger to step through your code, looking for strange behavior. (For more information, see [the documentation](https://support.rstudio.com/hc/en-us/articles/205612627-Debugging-with-RStudio))
+
+- If all else fails, Google the error. Some one has probably encountered it before.
+
+- Post on Piazza. One of your classmates may have encountered and fixed the same problem.
+
+- As a last resort, ask me. 
+
+## Using the RStudio Debugger
+To set a breakpoint (a point at which you would like to stop execution of your code), just click next to the line where you would like to pause. A red circle will appear. To remove the breakpoint, just click on the red circle.
+![](set_breakpoint.png)
+
+You will then need to source your code before this change will take effect. The next time you run the code, it will stop at the breakpoint, and enter debugging mode, which will make the top of your console look a little different. 
+![](buttons_in_debug.png)
+
+From left to right, the next button will execute the next line of code, the button with arrow pointed inside the curly brackets will step inside the line of code, the curly arrow with two horizontal lines next to it will step to the end of the function or loop, the continue button will run the code forward until it hits the next breakpoint or finishes, and the stop button will exit the debugger. 
+The debugger is a powerful tool. 
+
+## Using non RStudio Debugger
+- The red circle, graphical approach is nice, but it does not work with Rmd. 
+
+- You can also enter the debugger by using various R functions
+
+```{r}
+x <- 1
+y <- 2
+
+browser()
+
+z <- x + y
+```
+
+- The browser function wil stop your code at the line.  Use "where" to double check where you are, "n" to go to the next line, or "c " to continue onto the next browser() statement
+
+  - Note you won't be doing this in the code chunk but instead in the console
+
+- This works particularly well inside functions, which the RStudio debugger can sometimes have a hard time handling
+
+- There are additional R debugging functions, such as traceback().  A full list is: https://rstats.wtf/debugging-r-code.html
+
+**Question 5**
+
+Debug this with me
+
+```{r}
+plot(iris$Species, iris$Sepal.Length)
+```
+
+What if we now want to run a simulation with instead of having biological groups we have random sepal lengths.
+
+```{r, eval = FALSE}
+test_func <- function(test_x){
+  test_mat <- matrix(0, nrow = length(unique(test_x))*3, ncol = 2)
+  start <- 1
+  end <- 3
+  for(i in unique(test_x)){
+    test_mat[start:end, 1] <- rep(i,3)
+    test_mat[start:end, 2] <- sample(1:100, 3)
+    start <- start + 3
+    end <- end + 3
+  }
+  return(test_mat)
+}
+
+back <- test_func(iris$Species)
+plot(back[,1], back[,2])
+```
+
+
+--------------------------------------------------------------------------------------
+
+### Problem
+
+You have recently inherited a collection of trick coins, each has a different probability of coming up tails.  Looking to make some money you stand on the sidewalk and ask people who pass by to take the bet: If in two coin flips it lands tails twice I win, if the second coin flip is heads then you win. If neither event occurs you repeat the exercise.  Assuming you use the same coin for both flips, what is the probability of tails that will allow you to win this bet more times than you will lose?
+
+Let's answer with a simulation:
+```{r, comment = NA}
+number_double_flips <- 1000
+first_flip <- rbinom(n = number_double_flips, size = 1,prob = 0.5)
+second_flip <- rbinom(n = number_double_flips, size = 1,prob = 0.5)
+
+sum(first_flip==1 & second_flip==1)/number_double_flips #tails on both flips - I win
+sum(second_flip==0)/number_double_flips #heads on second flip - you win
+```
+
+Second Part: Your victim is starting to get wise.  If you start using a nearly fair coin (prob=0.55) on the first flip, what must be the probability of the second coin to again assure you'll make some money.
+
+While solving this problem is not required, I highly encourage you to try. I suggest starting the problem by writing a function that takes in the probability of heads of two coins and then calculates and returns the probability of you winning and the probability of your mark winning. Then, you can loop through the possible values of heads until you win more than half of the time.
+
+
+
+ANSWER:
+
+Part 1
+```{r}
+number_double_flips <- 1000
+coin_probs <- seq(0.2, 0.8, length.out = 100)
+all_wins <- matrix(0, nrow = length(coin_probs), ncol = 2)
+
+i <- 1
+for(prob in coin_probs){
+  first_flip <- rbinom(n = number_double_flips, size = 1,prob = prob)
+  second_flip <- rbinom(n = number_double_flips, size = 1,prob = prob)
+
+  all_wins[i,1] <- sum(first_flip==1 & second_flip==1)/number_double_flips #tails on both flips - I win
+  all_wins[i,2] <- sum(second_flip==0)/number_double_flips #heads on second flip - you win
+  i <- i +1
+}
+
+ans <- coin_probs[which(all_wins[,1] > all_wins[,2])[1]]
+```
+
+
+
+Part 2
+```{r}
+number_double_flips <- 1000
+coin_probs <- seq(0.2, 0.8, length.out = 100)
+all_wins <- matrix(0, nrow = length(coin_probs), ncol = 2)
+
+i <- 1
+for(prob in coin_probs){
+  first_flip <- rbinom(n = number_double_flips, size = 1,prob = 0.55)
+  second_flip <- rbinom(n = number_double_flips, size = 1,prob = prob)
+
+  all_wins[i,1] <- sum(first_flip==1 & second_flip==1)/number_double_flips #tails on both flips - I win
+  all_wins[i,2] <- sum(second_flip==0)/number_double_flips #heads on second flip - you win
+  i <- i +1
+}
+
+ans <- coin_probs[which(all_wins[,1] > all_wins[,2])[1]]
+```
